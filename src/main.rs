@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::io::Write;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,7 +25,50 @@ struct Body {
     ty: MessageType,
     msg_id: usize,
     in_reply_to: Option<usize>,
-    echo: String,
+    #[serde(flatten)]
+    extra: HashMap<String, serde_json::Value>,
+}
+
+struct Node {
+    id: usize,
+}
+
+impl Node {
+    pub fn new() -> Self {
+        Self { id: 0 }
+    }
+
+    pub fn next(&mut self, msg: Message) -> Option<Message> {
+        let body = match msg.body.ty {
+            MessageType::Init => {
+                self.id += 1;
+                Some(Body {
+                    ty: MessageType::InitOk,
+                    msg_id: self.id,
+                    in_reply_to: Some(msg.body.msg_id),
+                    extra: Default::default(),
+                })
+            }
+            MessageType::Echo => {
+                self.id += 1;
+                Some(Body {
+                    ty: MessageType::EchoOk,
+                    msg_id: self.id,
+                    in_reply_to: Some(msg.body.msg_id),
+                    extra: HashMap::from([(
+                        "echo".to_string(),
+                        msg.body.extra.get("echo").unwrap().to_owned().into(),
+                    )]),
+                })
+            }
+            _ => None,
+        }?;
+        Some(Message {
+            src: msg.dest,
+            dest: msg.src,
+            body,
+        })
+    }
 }
 
 fn read() -> Option<Message> {
@@ -46,7 +90,8 @@ fn read() -> Option<Message> {
 }
 
 fn write(msg: Message) {
-    let d = serde_json::to_string(&msg).unwrap();
+    let mut d = serde_json::to_string(&msg).unwrap();
+    d.push_str("\n");
     // Write JSON to stdout
     if let Err(error) = std::io::stdout().write_all(d.as_bytes()) {
         eprintln!("Failed to write to stdout: {}", error);
@@ -56,6 +101,13 @@ fn write(msg: Message) {
 }
 
 fn main() {
-    let message = read().unwrap();
-    write(message);
+    loop {
+        let message = read().unwrap();
+        let mut node = Node::new();
+        if let Some(msg) = node.next(message) {
+            write(msg);
+        } else {
+            break;
+        }
+    }
 }
