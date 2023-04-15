@@ -13,6 +13,7 @@ struct Message {
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum Body {
+    // Node init
     Init {
         msg_id: usize,
         node_id: String,
@@ -21,6 +22,7 @@ enum Body {
     InitOk {
         in_reply_to: usize,
     },
+    // challenge 1
     Echo {
         msg_id: usize,
         echo: String,
@@ -30,11 +32,36 @@ enum Body {
         in_reply_to: usize,
         echo: String,
     },
+    // challenge 2
     Generate {
         msg_id: usize,
     },
     GenerateOk {
         id: String,
+        msg_id: usize,
+        in_reply_to: usize,
+    },
+    // challenge 3
+    Broadcast {
+        msg_id: usize,
+        message: usize,
+    },
+    BroadcastOk {
+        msg_id: usize,
+        in_reply_to: usize,
+    },
+    Read {
+        msg_id: usize,
+    },
+    ReadOk {
+        msg_id: usize,
+        in_reply_to: usize,
+        messages: Vec<usize>,
+    },
+    Topology {
+        msg_id: usize,
+    },
+    TopologyOk {
         msg_id: usize,
         in_reply_to: usize,
     },
@@ -44,6 +71,7 @@ struct Node {
     node_id: usize,
     msg_counter: usize,
     generator: TuidGenerator,
+    broadcast_history: Vec<usize>,
 }
 
 impl Node {
@@ -52,6 +80,7 @@ impl Node {
             node_id,
             msg_counter: 0,
             generator: TuidGenerator::new(node_id as u8).unwrap(),
+            broadcast_history: vec![],
         }
     }
 
@@ -73,6 +102,22 @@ impl Node {
                     in_reply_to: msg_id,
                 })
             }
+            Body::Broadcast { msg_id, message } => {
+                self.broadcast_history.push(message);
+                Some(Body::BroadcastOk {
+                    msg_id: msg_id + 1,
+                    in_reply_to: msg_id,
+                })
+            }
+            Body::Read { msg_id } => Some(Body::ReadOk {
+                msg_id: msg_id + 1,
+                in_reply_to: msg_id,
+                messages: self.broadcast_history.clone(),
+            }),
+            Body::Topology { msg_id } => Some(Body::TopologyOk {
+                msg_id: msg_id + 1,
+                in_reply_to: msg_id,
+            }),
             _ => None,
         }?;
         Some(Message {
