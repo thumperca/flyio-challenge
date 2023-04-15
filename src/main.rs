@@ -10,23 +10,25 @@ struct Message {
 }
 
 #[derive(Deserialize, Debug, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum MessageType {
-    Init,
-    InitOk,
-    Echo,
-    EchoOk,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-struct Body {
-    #[serde(rename = "type")]
-    ty: MessageType,
-    msg_id: usize,
-    in_reply_to: Option<usize>,
-    #[serde(flatten)]
-    extra: HashMap<String, serde_json::Value>,
+#[serde(tag = "type", rename_all = "snake_case")]
+enum Body {
+    Init {
+        msg_id: usize,
+        node_id: String,
+        node_ids: Vec<String>,
+    },
+    InitOk {
+        in_reply_to: usize,
+    },
+    Echo {
+        msg_id: usize,
+        echo: String,
+    },
+    EchoOk {
+        msg_id: usize,
+        in_reply_to: usize,
+        echo: String,
+    },
 }
 
 #[derive(Clone)]
@@ -44,28 +46,15 @@ impl Node {
     }
 
     pub fn next(&mut self, msg: Message) -> Option<Message> {
-        let body = match msg.body.ty {
-            MessageType::Init => {
-                self.msg_counter += 1;
-                Some(Body {
-                    ty: MessageType::InitOk,
-                    msg_id: self.msg_counter,
-                    in_reply_to: Some(msg.body.msg_id),
-                    extra: Default::default(),
-                })
-            }
-            MessageType::Echo => {
-                self.msg_counter += 1;
-                Some(Body {
-                    ty: MessageType::EchoOk,
-                    msg_id: self.msg_counter,
-                    in_reply_to: Some(msg.body.msg_id),
-                    extra: HashMap::from([(
-                        "echo".to_string(),
-                        msg.body.extra.get("echo").unwrap().to_owned().into(),
-                    )]),
-                })
-            }
+        let body = match msg.body {
+            Body::Init { msg_id, .. } => Some(Body::InitOk {
+                in_reply_to: msg_id,
+            }),
+            Body::Echo { msg_id, echo } => Some(Body::EchoOk {
+                msg_id: msg_id + 1,
+                in_reply_to: msg_id,
+                echo,
+            }),
             _ => None,
         }?;
         Some(Message {
