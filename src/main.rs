@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Write;
+use tuid::TuidGenerator;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Message {
@@ -29,12 +30,20 @@ enum Body {
         in_reply_to: usize,
         echo: String,
     },
+    Generate {
+        msg_id: usize,
+    },
+    GenerateOk {
+        id: String,
+        msg_id: usize,
+        in_reply_to: usize,
+    },
 }
 
-#[derive(Clone)]
 struct Node {
     node_id: usize,
     msg_counter: usize,
+    generator: TuidGenerator,
 }
 
 impl Node {
@@ -42,6 +51,7 @@ impl Node {
         Self {
             node_id,
             msg_counter: 0,
+            generator: TuidGenerator::new(node_id as u8).unwrap(),
         }
     }
 
@@ -55,6 +65,14 @@ impl Node {
                 in_reply_to: msg_id,
                 echo,
             }),
+            Body::Generate { msg_id } => {
+                let id = self.generator.next();
+                Some(Body::GenerateOk {
+                    id: id.to_string(),
+                    msg_id: msg_id + 1,
+                    in_reply_to: msg_id,
+                })
+            }
             _ => None,
         }?;
         Some(Message {
