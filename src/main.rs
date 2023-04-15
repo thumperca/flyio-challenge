@@ -29,31 +29,36 @@ struct Body {
     extra: HashMap<String, serde_json::Value>,
 }
 
+#[derive(Clone)]
 struct Node {
-    id: usize,
+    node_id: usize,
+    msg_counter: usize,
 }
 
 impl Node {
-    pub fn new() -> Self {
-        Self { id: 0 }
+    pub fn new(node_id: usize) -> Self {
+        Self {
+            node_id,
+            msg_counter: 0,
+        }
     }
 
     pub fn next(&mut self, msg: Message) -> Option<Message> {
         let body = match msg.body.ty {
             MessageType::Init => {
-                self.id += 1;
+                self.msg_counter += 1;
                 Some(Body {
                     ty: MessageType::InitOk,
-                    msg_id: self.id,
+                    msg_id: self.msg_counter,
                     in_reply_to: Some(msg.body.msg_id),
                     extra: Default::default(),
                 })
             }
             MessageType::Echo => {
-                self.id += 1;
+                self.msg_counter += 1;
                 Some(Body {
                     ty: MessageType::EchoOk,
-                    msg_id: self.id,
+                    msg_id: self.msg_counter,
                     in_reply_to: Some(msg.body.msg_id),
                     extra: HashMap::from([(
                         "echo".to_string(),
@@ -69,6 +74,13 @@ impl Node {
             body,
         })
     }
+}
+
+fn get_node(node_id: &str) -> Node {
+    let id = (&node_id[1..])
+        .parse::<usize>()
+        .expect("Node ID to be valid");
+    Node::new(id)
 }
 
 fn read() -> Option<Message> {
@@ -101,13 +113,29 @@ fn write(msg: Message) {
 }
 
 fn main() {
+    let mut node_holder = None;
     loop {
         let message = read().unwrap();
-        let mut node = Node::new();
+        let mut node = node_holder.unwrap_or_else(|| {
+            let node = get_node(&message.dest);
+            node
+        });
         if let Some(msg) = node.next(message) {
             write(msg);
         } else {
             break;
         }
+        node_holder = Some(node);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn node_id() {
+        let node = get_node("n2");
+        assert_eq!(node.node_id, 2);
     }
 }
