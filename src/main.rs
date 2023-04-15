@@ -27,7 +27,7 @@ struct Body {
     echo: String,
 }
 
-fn main() {
+fn read() -> Option<Message> {
     // Create a mutable buffer to hold the input
     let mut input = String::new();
 
@@ -37,15 +37,25 @@ fn main() {
             // Serialize input to JSON
             let message =
                 serde_json::from_str::<Message>(&input).expect("Failed to serialize to JSON");
-            // Write JSON to stdout
-            // if let Err(error) = std::io::stdout().write_all(json.as_bytes()) {
-            //     eprintln!("Failed to write to stdout: {}", error);
-            // }
-            // // Flush stdout to ensure data is written immediately
-            // std::io::stdout().flush().expect("Failed to flush stdout");
+            Some(message)
         }
         Err(error) => {
             panic!("Failed to read input: {}", error);
         }
     }
+}
+
+fn write(msg: Message) {
+    let d = serde_json::to_string(&msg).unwrap();
+    // Write JSON to stdout
+    if let Err(error) = std::io::stdout().write_all(d.as_bytes()) {
+        eprintln!("Failed to write to stdout: {}", error);
+    }
+    // Flush stdout to ensure data is written immediately
+    std::io::stdout().flush().expect("Failed to flush stdout");
+}
+
+fn main() {
+    let message = read().unwrap();
+    write(message);
 }
