@@ -6,20 +6,7 @@ use tuid::TuidGenerator;
 
 pub trait Node {
     type Payload;
-
-    fn new(id: String, nodes: Vec<String>) -> Self;
-    fn process(&self, message: &Message<Self::Payload>) -> Self::Payload;
-}
-
-enum BaseMessage<T> {
-    Network(Handshake),
-    Application(Message<T>),
-}
-
-struct Handshake {
-    msg_id: usize,
-    node_id: String,
-    node_ids: Vec<String>,
+    fn process(&self, message: &Self::Payload) -> Self::Payload;
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -38,14 +25,7 @@ struct Body<T> {
     payload: T,
 }
 
-fn get_node(node_id: &str) -> usize {
-    let id = (&node_id[1..])
-        .parse::<usize>()
-        .expect("Node ID to be valid");
-    id
-}
-
-struct Server<T>
+pub struct Server<T>
 where
     T: Node,
     for<'a> T::Payload: Deserialize<'a> + Serialize,
@@ -68,7 +48,7 @@ where
                 None => break,
                 Some(m) => m,
             };
-            let response = self.node.process(&message);
+            let response = self.node.process(&message.body.payload);
             self.write(message, response);
         }
     }
